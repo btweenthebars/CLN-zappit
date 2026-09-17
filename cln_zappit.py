@@ -37,23 +37,59 @@ def normalize_node_id(value: Optional[str]) -> Optional[str]:
     return cleaned if NODE_ID_REGEX.match(cleaned) else None
 
 
+def to_bool(value: Any, default: bool = False) -> bool:
+    """Parse boolean from bool, int, or string ('true', 'false', '0', '1', 'no', 'off')."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        val = value.strip().lower()
+        if val in ("1", "true", "yes", "on", "enable", "enabled"):
+            return True
+        if val in ("0", "false", "no", "off", "disable", "disabled"):
+            return False
+    return bool(value)
+
+
 def parse_msat(value: Any) -> Optional[int]:
-    """Parse a CLN millisatoshi value from int, string ('1000msat'), or object {'msat': ...}."""
+    """Parse a CLN millisatoshi value from int, float, string ('1000msat', '1000sat'), or dict."""
     if value is None:
         return None
-    if isinstance(value, int):
-        return value if value >= 0 else None
+    if isinstance(value, (int, float)):
+        val = int(value)
+        return val if val >= 0 else None
     if isinstance(value, str):
         cleaned = value.strip().lower()
         if cleaned.endswith("msat"):
             cleaned = cleaned[:-4]
-        try:
-            val = int(cleaned)
-            return val if val >= 0 else None
-        except ValueError:
-            return None
-    if isinstance(value, dict) and "msat" in value:
-        return parse_msat(value["msat"])
+            try:
+                val = int(cleaned)
+                return val if val >= 0 else None
+            except ValueError:
+                return None
+        elif cleaned.endswith("sats") or cleaned.endswith("sat"):
+            cleaned = cleaned[:-4] if cleaned.endswith("sats") else cleaned[:-3]
+            try:
+                val = int(cleaned)
+                return (val * 1000) if val >= 0 else None
+            except ValueError:
+                return None
+        else:
+            try:
+                val = int(cleaned)
+                return val if val >= 0 else None
+            except ValueError:
+                return None
+    if isinstance(value, dict):
+        if "msat" in value:
+            return parse_msat(value["msat"])
+        if "sat" in value or "sats" in value:
+            sat_val = value.get("sat") if "sat" in value else value.get("sats")
+            parsed_sat = parse_msat(sat_val)
+            return (parsed_sat * 1000) if parsed_sat is not None else None
     return None
 
 
@@ -609,21 +645,36 @@ class ClnZappitPlugin:
 
         # 3. CLI options override config file if explicitly supplied
         if "cln-zappit-enabled" in config_options:
-            self.config.enabled = bool(config_options["cln-zappit-enabled"])
+            self.config.enabled = to_bool(config_options["cln-zappit-enabled"], self.config.enabled)
         if "cln-zappit-min-channel-sat" in config_options:
-            self.config.min_channel_sat = int(config_options["cln-zappit-min-channel-sat"])
+            try:
+                self.config.min_channel_sat = int(config_options["cln-zappit-min-channel-sat"])
+            except (ValueError, TypeError):
+                pass
         if "cln-zappit-min-public-channels" in config_options:
-            self.config.min_public_channels = int(config_options["cln-zappit-min-public-channels"])
+            try:
+                self.config.min_public_channels = int(config_options["cln-zappit-min-public-channels"])
+            except (ValueError, TypeError):
+                pass
         if "cln-zappit-min-distinct-peers" in config_options:
-            self.config.min_distinct_peers = int(config_options["cln-zappit-min-distinct-peers"])
+            try:
+                self.config.min_distinct_peers = int(config_options["cln-zappit-min-distinct-peers"])
+            except (ValueError, TypeError):
+                pass
         if "cln-zappit-min-public-capacity-sat" in config_options:
-            self.config.min_public_capacity_sat = int(config_options["cln-zappit-min-public-capacity-sat"])
+            try:
+                self.config.min_public_capacity_sat = int(config_options["cln-zappit-min-public-capacity-sat"])
+            except (ValueError, TypeError):
+                pass
         if "cln-zappit-min-oldest-channel-blocks" in config_options:
-            self.config.min_oldest_channel_blocks = int(config_options["cln-zappit-min-oldest-channel-blocks"])
+            try:
+                self.config.min_oldest_channel_blocks = int(config_options["cln-zappit-min-oldest-channel-blocks"])
+            except (ValueError, TypeError):
+                pass
         if "cln-zappit-reject-private" in config_options:
-            self.config.reject_private = bool(config_options["cln-zappit-reject-private"])
+            self.config.reject_private = to_bool(config_options["cln-zappit-reject-private"], self.config.reject_private)
         if "cln-zappit-fail-open" in config_options:
-            self.config.fail_open = bool(config_options["cln-zappit-fail-open"])
+            self.config.fail_open = to_bool(config_options["cln-zappit-fail-open"], self.config.fail_open)
 
         # 4. State storage path
         self.state_path = os.path.join(lightning_dir, DEFAULT_STATE_FILENAME)
@@ -640,6 +691,36 @@ class ClnZappitPlugin:
                 logging.warning("CLN-zappit: could not query getinfo at startup: %s", e)
 
         return {}
+
+    def should_inspect_graph(self, req: OpenRequest, now: int) -> bool:
+        """Skip expensive gossip RPC calls if channel is already decided by fast local rules."""
+        if not self.config.enabled:
+            return False
+        # 1. Denylist check
+        if req.peer_id in self.config.denylist or req.peer_id in self.state.denylist:
+            return False
+        # 2. Ban check
+        ban_until = self.state.bans.get(req.peer_id)
+        if ban_until and ban_until > now:
+            return False
+        # 3. Allowlist check
+        if req.peer_id in self.config.allowlist or req.peer_id in self.state.allowlist:
+            return False
+        # 4. Minimum channel funding check
+        if (req.funding_msat // 1000) < self.config.min_channel_sat:
+            return False
+        # 5. Private channel rejection check
+        if self.config.reject_private and not req.announced:
+            return False
+        # 6. If all graph criteria are disabled, no inspection needed
+        if (
+            self.config.min_public_channels == 0
+            and self.config.min_distinct_peers == 0
+            and self.config.min_public_capacity_sat == 0
+            and self.config.min_oldest_channel_blocks == 0
+        ):
+            return False
+        return True
 
     def inspect_graph(self, peer_id: str) -> Tuple[Optional[GraphStats], Optional[str]]:
         if not self.rpc_client:
@@ -666,9 +747,22 @@ class ClnZappitPlugin:
         if not peer_id:
             return {"result": "reject", "error_message": "Invalid peer ID"}
 
-        funding_key = "funding_msat" if protocol == "v1" else "their_funding_msat"
-        funding_msat = parse_msat(inner.get(funding_key)) or 0
-        channel_flags = int(inner.get("channel_flags", 0))
+        funding_msat: Optional[int] = None
+        if protocol == "v2":
+            funding_msat = parse_msat(inner.get("their_funding_msat"))
+            if funding_msat is None:
+                funding_msat = parse_msat(inner.get("their_funding_satoshis"))
+        else:
+            funding_msat = parse_msat(inner.get("funding_msat"))
+            if funding_msat is None:
+                funding_msat = parse_msat(inner.get("funding_satoshis"))
+        funding_msat = funding_msat or 0
+
+        raw_flags = inner.get("channel_flags")
+        try:
+            channel_flags = int(raw_flags) if raw_flags is not None else 0
+        except (ValueError, TypeError):
+            channel_flags = 0
         announced = (channel_flags & 1) == 1
 
         req = OpenRequest(
@@ -678,7 +772,11 @@ class ClnZappitPlugin:
             announced=announced,
         )
 
-        graph_stats_res, graph_err = self.inspect_graph(peer_id)
+        if self.should_inspect_graph(req, now):
+            graph_stats_res, graph_err = self.inspect_graph(peer_id)
+        else:
+            graph_stats_res, graph_err = None, None
+
         accepted, reason, message = evaluate(
             self.config, self.state, req, graph_stats_res, graph_err, now
         )
@@ -794,13 +892,12 @@ class ClnZappitPlugin:
         if isinstance(params, dict):
             node_id = normalize_node_id(params.get("node_id") or params.get("id"))
             if "enabled" in params:
-                enabled = bool(params["enabled"])
+                enabled = to_bool(params["enabled"], True)
         elif isinstance(params, list):
             if params:
                 node_id = normalize_node_id(str(params[0]))
             if len(params) > 1:
-                val = str(params[1]).lower()
-                enabled = val not in ("false", "0", "no")
+                enabled = to_bool(params[1], True)
         return node_id, enabled
 
     # --- Main Event Loop ---

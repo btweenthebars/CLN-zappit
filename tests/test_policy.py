@@ -17,6 +17,8 @@ from cln_zappit import (
     normalize_node_id,
     parse_msat,
     save_runtime_state,
+    to_bool,
+    ClnZappitPlugin,
 )
 
 SAMPLE_PEER_A = "02065e25c272203440b66ea0ec2ff466d0172fae0e5a8891fa3374d081f9381939"
@@ -306,6 +308,93 @@ ban_seconds = 172800
             self.assertEqual(loaded.decisions[0].reason, "channel_too_small")
         finally:
             os.remove(temp_path)
+
+
+class TestRobustnessAndEdgeCases(unittest.TestCase):
+    def test_to_bool_parsing(self):
+        self.assertTrue(to_bool(True))
+        self.assertTrue(to_bool(1))
+        self.assertTrue(to_bool("true"))
+        self.assertTrue(to_bool("TRUE"))
+        self.assertTrue(to_bool("yes"))
+        self.assertTrue(to_bool("on"))
+        self.assertTrue(to_bool("enable"))
+        self.assertTrue(to_bool("enabled"))
+
+        self.assertFalse(to_bool(False))
+        self.assertFalse(to_bool(0))
+        self.assertFalse(to_bool("false"))
+        self.assertFalse(to_bool("FALSE"))
+        self.assertFalse(to_bool("no"))
+        self.assertFalse(to_bool("off"))
+        self.assertFalse(to_bool("disable"))
+        self.assertFalse(to_bool("disabled"))
+        self.assertFalse(to_bool(None, default=False))
+        self.assertTrue(to_bool(None, default=True))
+
+    def test_parse_msat_extended(self):
+        # sat and sats suffix
+        self.assertEqual(parse_msat("5000sat"), 5_000_000)
+        self.assertEqual(parse_msat("2500sats"), 2_500_000)
+        # float
+        self.assertEqual(parse_msat(1000.0), 1000)
+        # dict with sat
+        self.assertEqual(parse_msat({"sat": 500}), 500_000)
+        self.assertEqual(parse_msat({"sats": "200"}), 200_000)
+        # dict with msat
+        self.assertEqual(parse_msat({"msat": "3000msat"}), 3000)
+
+    def test_should_inspect_graph_short_circuits(self):
+        plugin = ClnZappitPlugin()
+        plugin.config = PolicyConfig(
+            enabled=True,
+            min_channel_sat=1_000_000,
+            reject_private=True,
+            min_public_channels=1,
+        )
+        now = 1000
+
+        # Small channel -> should not inspect graph
+        small_req = OpenRequest(peer_id=SAMPLE_PEER_A, protocol="v2", funding_msat=500_000_000, announced=True)
+        self.assertFalse(plugin.should_inspect_graph(small_req, now))
+
+        # Private unannounced channel -> should not inspect graph
+        private_req = OpenRequest(peer_id=SAMPLE_PEER_A, protocol="v2", funding_msat=2_000_000_000, announced=False)
+        self.assertFalse(plugin.should_inspect_graph(private_req, now))
+
+        # Denylisted peer -> should not inspect graph
+        plugin.config.denylist.add(SAMPLE_PEER_A)
+        good_req = OpenRequest(peer_id=SAMPLE_PEER_A, protocol="v2", funding_msat=2_000_000_000, announced=True)
+        self.assertFalse(plugin.should_inspect_graph(good_req, now))
+        plugin.config.denylist.clear()
+
+        # Banned peer -> should not inspect graph
+        plugin.state.bans[SAMPLE_PEER_A] = now + 1000
+        self.assertFalse(plugin.should_inspect_graph(good_req, now))
+        plugin.state.bans.clear()
+
+        # Allowlisted peer -> should not inspect graph
+        plugin.config.allowlist.add(SAMPLE_PEER_A)
+        self.assertFalse(plugin.should_inspect_graph(good_req, now))
+        plugin.config.allowlist.clear()
+
+        # Normal valid proposal -> should inspect graph!
+        self.assertTrue(plugin.should_inspect_graph(good_req, now))
+
+    def test_parse_node_and_toggle(self):
+        # Dict with boolean string
+        node, enabled = ClnZappitPlugin._parse_node_and_toggle({"id": SAMPLE_PEER_A, "enabled": "false"})
+        self.assertEqual(node, SAMPLE_PEER_A.lower())
+        self.assertFalse(enabled)
+
+        # List with boolean string
+        node, enabled = ClnZappitPlugin._parse_node_and_toggle([SAMPLE_PEER_A, "off"])
+        self.assertEqual(node, SAMPLE_PEER_A.lower())
+        self.assertFalse(enabled)
+
+        node, enabled = ClnZappitPlugin._parse_node_and_toggle([SAMPLE_PEER_A, "true"])
+        self.assertEqual(node, SAMPLE_PEER_A.lower())
+        self.assertTrue(enabled)
 
 
 if __name__ == "__main__":
