@@ -1,0 +1,64 @@
+# ==============================================================================
+# CLN-zapit Configuration File
+# ==============================================================================
+# Defensive incoming-channel admission policy for Core Lightning.
+# Place this file at ~/.lightning/cln-zapit.conf, ~/.lightning/<network>/cln-zapit.conf,
+# or specify via CLN config: cln-zapit-config=/path/to/cln-zapit.conf
+# ==============================================================================
+
+[policy]
+# Master switch for channel admission checks (true / false)
+enabled = true
+
+# Minimum remote funding amount accepted from incoming channel proposals, in satoshis.
+# Any channel proposal funding less than this will be rejected.
+min_channel_sat = 2000000
+
+# Reject unannounced (private) channels proposed by unknown peers.
+# If true, peers not in the allowlist cannot open private channels to you.
+reject_private = true
+
+# Minimum other active public channels the peer must already maintain in the network graph.
+# Rejects new/unconnected peers with zero active network footprint.
+min_public_channels = 1
+
+# Minimum distinct counterparties the peer must be connected to in the public graph.
+# Helps defend against fake topologies where a peer only connects to their own shadow node.
+min_distinct_peers = 1
+
+# Minimum total public capacity the peer must currently maintain across their channels (sats).
+# Set to 0 to disable total capacity requirements.
+min_public_capacity_sat = 0
+
+# Minimum age of the peer's oldest active public channel, in blocks (~10 min per block).
+# 144 blocks ≈ 1 day, 1008 blocks ≈ 1 week, 4320 blocks ≈ 1 month.
+# Set to 0 to disable channel age requirements.
+min_oldest_channel_blocks = 0
+
+# Fail-open switch if CLN's gossip graph query fails (e.g., node sync or timeout).
+# false = reject channel proposal if graph cannot be verified (defensive default).
+# true  = accept channel proposal if graph check encounters an error.
+fail_open = false
+
+[rate_limit]
+# Time window in seconds for counting repeated failed channel attempts from a peer.
+rejection_window_seconds = 3600
+
+# Number of rejections within the window before the peer is temporarily banned.
+# Set to 0 to disable automated rate-limit bans.
+ban_after_rejections = 3
+
+# Duration in seconds of a temporary peer ban (86400 = 24 hours).
+ban_seconds = 86400
+
+[allowlist]
+# Explicit peer node public keys (compressed 33-byte hex) allowed to open channels.
+# Allowed peers bypass all size, privacy, and gossip graph requirements.
+# Add one per line (pubkey = true or simply pubkey):
+# 02065e25c272203440b66ea0ec2ff466d0172fae0e5a8891fa3374d081f9381939 = true
+# 03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f = true
+
+[denylist]
+# Explicit peer node public keys (compressed 33-byte hex) unconditionally rejected.
+# Denylist takes precedence over allowlist and gossip policy.
+# 03271338633d06ae4e76420c3ff503d64f2736551061133642cc3b9828ea2c538f = true

@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Rust
+target/
+**/*.rs.bk
+Cargo.lock
+
+# CLN runtime state
+*.tmp
+cln-zapit.json
+*.operations.json
+
+# IDE and OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
