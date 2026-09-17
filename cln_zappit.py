@@ -109,6 +109,8 @@ class PolicyConfig:
     min_oldest_channel_blocks: int = 0
     reject_private: bool = True
     fail_open: bool = False
+    generic_reject: bool = True
+    reject_message: str = "Channel proposal declined."
     rejection_window_seconds: int = 3600
     ban_after_rejections: int = 3
     ban_seconds: int = 86400
@@ -390,6 +392,12 @@ def load_config_file(path: str) -> PolicyConfig:
             config.min_oldest_channel_blocks = sec.getint("min_oldest_channel_blocks", fallback=config.min_oldest_channel_blocks)
         if "fail_open" in sec:
             config.fail_open = sec.getboolean("fail_open", fallback=config.fail_open)
+        if "generic_reject" in sec:
+            config.generic_reject = sec.getboolean("generic_reject", fallback=config.generic_reject)
+        if "reject_message" in sec:
+            val = sec.get("reject_message", fallback=config.reject_message)
+            if val:
+                config.reject_message = val.strip().strip('"').strip("'")
 
     if parser.has_section("rate_limit"):
         sec = parser["rate_limit"]
@@ -591,6 +599,18 @@ class ClnZappitPlugin:
                     "default": False,
                     "description": "Accept proposals if graph inspection fails",
                 },
+                {
+                    "name": "cln-zappit-generic-reject",
+                    "type": "bool",
+                    "default": True,
+                    "description": "Send generic error message to remote peers instead of detailed reasons",
+                },
+                {
+                    "name": "cln-zappit-reject-message",
+                    "type": "string",
+                    "default": "Channel proposal declined.",
+                    "description": "Generic rejection message sent to remote peers",
+                },
             ],
             "rpcmethods": [
                 {
@@ -684,6 +704,10 @@ class ClnZappitPlugin:
             self.config.reject_private = to_bool(config_options["cln-zappit-reject-private"], self.config.reject_private)
         if "cln-zappit-fail-open" in config_options:
             self.config.fail_open = to_bool(config_options["cln-zappit-fail-open"], self.config.fail_open)
+        if "cln-zappit-generic-reject" in config_options:
+            self.config.generic_reject = to_bool(config_options["cln-zappit-generic-reject"], self.config.generic_reject)
+        if "cln-zappit-reject-message" in config_options:
+            self.config.reject_message = str(config_options["cln-zappit-reject-message"]).strip()
 
         # 4. State storage path
         self.state_path = os.path.join(lightning_dir, DEFAULT_STATE_FILENAME)
@@ -839,7 +863,9 @@ class ClnZappitPlugin:
 
         if accepted:
             return {"result": "continue"}
-        return {"result": "reject", "error_message": message}
+        
+        peer_error = self.config.reject_message if self.config.generic_reject else message
+        return {"result": "reject", "error_message": peer_error}
 
     def emit_notification(self, method: str, params: Dict[str, Any]):
         notification = {"jsonrpc": "2.0", "method": method, "params": params}
@@ -861,6 +887,8 @@ class ClnZappitPlugin:
             "min_oldest_channel_blocks": self.config.min_oldest_channel_blocks,
             "reject_private": self.config.reject_private,
             "fail_open": self.config.fail_open,
+            "generic_reject": self.config.generic_reject,
+            "reject_message": self.config.reject_message,
             "ban_after_rejections": self.config.ban_after_rejections,
             "ban_seconds": self.config.ban_seconds,
             "active_bans_count": len(self.state.bans),

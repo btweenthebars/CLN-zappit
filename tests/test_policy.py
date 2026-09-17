@@ -396,6 +396,33 @@ class TestRobustnessAndEdgeCases(unittest.TestCase):
         self.assertEqual(node, SAMPLE_PEER_A.lower())
         self.assertTrue(enabled)
 
+    def test_generic_reject_hides_reason(self):
+        plugin = ClnZappitPlugin()
+        plugin.config = PolicyConfig(
+            enabled=True,
+            min_channel_sat=5_000_000,
+            generic_reject=True,
+            reject_message="Custom declined.",
+        )
+        # Low funding proposal
+        payload = {
+            "openchannel": {
+                "id": SAMPLE_PEER_A,
+                "funding_msat": 1_000_000_000,  # 1M sat, less than 5M
+                "channel_flags": 1,
+            }
+        }
+        res = plugin.handle_open_channel_hook(payload, "v1")
+        self.assertEqual(res["result"], "reject")
+        # Peer receives generic message, not internal reason
+        self.assertEqual(res["error_message"], "Custom declined.")
+
+        # If generic_reject is disabled, peer receives detailed message
+        plugin.config.generic_reject = False
+        res = plugin.handle_open_channel_hook(payload, "v1")
+        self.assertEqual(res["result"], "reject")
+        self.assertIn("5000000sat", res["error_message"])
+
 
 if __name__ == "__main__":
     unittest.main()

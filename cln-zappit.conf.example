@@ -40,6 +40,14 @@ min_oldest_channel_blocks = 0
 # true  = accept channel proposal if graph check encounters an error.
 fail_open = false
 
+# Send a generic error message to remote peers instead of detailed policy reasons.
+# true  = Prevents attackers from learning your policy rules (defensive default).
+# false = Sends exact diagnostic reasons over the wire (e.g. "minimum 2000000sat required").
+generic_reject = true
+
+# The generic message sent to remote peers when generic_reject is true.
+reject_message = "Channel proposal declined."
+
 [rate_limit]
 # Time window in seconds for counting repeated failed channel attempts from a peer.
 rejection_window_seconds = 3600

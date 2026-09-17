@@ -37,6 +37,8 @@ min_distinct_peers = 1           # Minimum distinct peers peer must have
 min_public_capacity_sat = 0      # Minimum public capacity (0 = disabled)
 min_oldest_channel_blocks = 0    # Minimum channel age in blocks (0 = disabled)
 fail_open = false                # If graph inspection fails: false = reject, true = accept
+generic_reject = true            # Hide internal reason from peers (anti-probing)
+reject_message = "Channel proposal declined."
 
 [rate_limit]
 rejection_window_seconds = 3600  # Window to track repeated rejections
