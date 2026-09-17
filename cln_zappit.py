@@ -519,14 +519,19 @@ class ClnZappitPlugin:
         self.state: RuntimeState = RuntimeState()
         self.rpc_client: Optional[ClnUnixRpcClient] = None
         self.local_node_id: Optional[str] = None
+        self.lightning_dir: str = "."
+        self.network: Optional[str] = None
 
     def find_config_file(self, lightning_dir: str, network: Optional[str] = None) -> Optional[str]:
         expanded_dir = os.path.expanduser(lightning_dir)
+        parent_dir = os.path.dirname(expanded_dir)
         candidates = [
             os.path.join(expanded_dir, DEFAULT_CONFIG_FILENAME),
+            os.path.join(parent_dir, DEFAULT_CONFIG_FILENAME),
         ]
         if network:
             candidates.append(os.path.join(expanded_dir, network, DEFAULT_CONFIG_FILENAME))
+            candidates.append(os.path.join(parent_dir, network, DEFAULT_CONFIG_FILENAME))
         candidates.extend([
             os.path.join(os.path.dirname(os.path.abspath(__file__)), DEFAULT_CONFIG_FILENAME),
             os.path.expanduser(f"~/.lightning/{DEFAULT_CONFIG_FILENAME}"),
@@ -534,12 +539,14 @@ class ClnZappitPlugin:
         if network:
             candidates.append(os.path.expanduser(f"~/.lightning/{network}/{DEFAULT_CONFIG_FILENAME}"))
         for path in candidates:
-            if os.path.exists(path):
-                return path
+            if os.path.isfile(path):
+                return os.path.abspath(path)
         return None
 
     def reload_config(self) -> Dict[str, Any]:
-        if self.config_path and os.path.exists(self.config_path):
+        if not self.config_path:
+            self.config_path = self.find_config_file(self.lightning_dir, self.network)
+        if self.config_path and os.path.isfile(self.config_path):
             self.config = load_config_file(self.config_path)
             return {"reloaded": True, "config_path": self.config_path, "enabled": self.config.enabled}
         return {"reloaded": False, "reason": "No config file found"}
@@ -560,62 +567,52 @@ class ClnZappitPlugin:
                 {
                     "name": "cln-zappit-enabled",
                     "type": "bool",
-                    "default": True,
-                    "description": "Enforce incoming-channel admission policy",
+                    "description": "Enforce incoming-channel admission policy (overrides config file)",
                 },
                 {
                     "name": "cln-zappit-min-channel-sat",
                     "type": "int",
-                    "default": 2000000,
-                    "description": "Minimum remote funding accepted (sats)",
+                    "description": "Minimum remote funding accepted in sats (overrides config file)",
                 },
                 {
                     "name": "cln-zappit-min-public-channels",
                     "type": "int",
-                    "default": 1,
-                    "description": "Minimum other active public channels required",
+                    "description": "Minimum other active public channels required (overrides config file)",
                 },
                 {
                     "name": "cln-zappit-min-distinct-peers",
                     "type": "int",
-                    "default": 1,
-                    "description": "Minimum distinct counterparties required",
+                    "description": "Minimum distinct counterparties required (overrides config file)",
                 },
                 {
                     "name": "cln-zappit-min-public-capacity-sat",
                     "type": "int",
-                    "default": 0,
-                    "description": "Minimum total public capacity required (sats)",
+                    "description": "Minimum total public capacity required in sats (overrides config file)",
                 },
                 {
                     "name": "cln-zappit-min-oldest-channel-blocks",
                     "type": "int",
-                    "default": 0,
-                    "description": "Minimum age of oldest channel in blocks",
+                    "description": "Minimum age of oldest channel in blocks (overrides config file)",
                 },
                 {
                     "name": "cln-zappit-reject-private",
                     "type": "bool",
-                    "default": True,
-                    "description": "Reject unannounced private channel proposals",
+                    "description": "Reject unannounced private channel proposals (overrides config file)",
                 },
                 {
                     "name": "cln-zappit-fail-open",
                     "type": "bool",
-                    "default": False,
-                    "description": "Accept proposals if graph inspection fails",
+                    "description": "Accept proposals if graph inspection fails (overrides config file)",
                 },
                 {
                     "name": "cln-zappit-generic-reject",
                     "type": "bool",
-                    "default": True,
-                    "description": "Send generic error message to remote peers instead of detailed reasons",
+                    "description": "Send generic error message to remote peers (overrides config file)",
                 },
                 {
                     "name": "cln-zappit-reject-message",
                     "type": "string",
-                    "default": "Channel proposal declined.",
-                    "description": "Generic rejection message sent to remote peers",
+                    "description": "Generic rejection message sent to remote peers (overrides config file)",
                 },
             ],
             "rpcmethods": [
@@ -658,17 +655,18 @@ class ClnZappitPlugin:
     def handle_init(self, params: Dict[str, Any]) -> Dict[str, Any]:
         config_options = params.get("options", {})
         cln_config = params.get("configuration", {})
-        lightning_dir = os.path.expanduser(cln_config.get("lightning-dir", "."))
+        self.lightning_dir = os.path.expanduser(cln_config.get("lightning-dir", "."))
+        self.network = cln_config.get("network")
         rpc_file = cln_config.get("rpc-file")
 
         # 1. Determine config file path
         custom_path = config_options.get("cln-zappit-config")
         if custom_path and isinstance(custom_path, str):
             custom_path = os.path.expanduser(custom_path)
-            if os.path.exists(custom_path):
-                self.config_path = custom_path
+            if os.path.isfile(custom_path):
+                self.config_path = os.path.abspath(custom_path)
         if not self.config_path:
-            self.config_path = self.find_config_file(lightning_dir, cln_config.get("network"))
+            self.config_path = self.find_config_file(self.lightning_dir, self.network)
 
         # 2. Load config file
         if self.config_path:
@@ -678,45 +676,45 @@ class ClnZappitPlugin:
             self.config = PolicyConfig()
             logging.info("CLN-zappit: using default policy configuration")
 
-        # 3. CLI options override config file if explicitly supplied
-        if "cln-zappit-enabled" in config_options:
+        # 3. CLI options override config file only if explicitly supplied by user (non-None)
+        if config_options.get("cln-zappit-enabled") is not None:
             self.config.enabled = to_bool(config_options["cln-zappit-enabled"], self.config.enabled)
-        if "cln-zappit-min-channel-sat" in config_options:
+        if config_options.get("cln-zappit-min-channel-sat") is not None:
             try:
                 self.config.min_channel_sat = int(config_options["cln-zappit-min-channel-sat"])
             except (ValueError, TypeError):
                 pass
-        if "cln-zappit-min-public-channels" in config_options:
+        if config_options.get("cln-zappit-min-public-channels") is not None:
             try:
                 self.config.min_public_channels = int(config_options["cln-zappit-min-public-channels"])
             except (ValueError, TypeError):
                 pass
-        if "cln-zappit-min-distinct-peers" in config_options:
+        if config_options.get("cln-zappit-min-distinct-peers") is not None:
             try:
                 self.config.min_distinct_peers = int(config_options["cln-zappit-min-distinct-peers"])
             except (ValueError, TypeError):
                 pass
-        if "cln-zappit-min-public-capacity-sat" in config_options:
+        if config_options.get("cln-zappit-min-public-capacity-sat") is not None:
             try:
                 self.config.min_public_capacity_sat = int(config_options["cln-zappit-min-public-capacity-sat"])
             except (ValueError, TypeError):
                 pass
-        if "cln-zappit-min-oldest-channel-blocks" in config_options:
+        if config_options.get("cln-zappit-min-oldest-channel-blocks") is not None:
             try:
                 self.config.min_oldest_channel_blocks = int(config_options["cln-zappit-min-oldest-channel-blocks"])
             except (ValueError, TypeError):
                 pass
-        if "cln-zappit-reject-private" in config_options:
+        if config_options.get("cln-zappit-reject-private") is not None:
             self.config.reject_private = to_bool(config_options["cln-zappit-reject-private"], self.config.reject_private)
-        if "cln-zappit-fail-open" in config_options:
+        if config_options.get("cln-zappit-fail-open") is not None:
             self.config.fail_open = to_bool(config_options["cln-zappit-fail-open"], self.config.fail_open)
-        if "cln-zappit-generic-reject" in config_options:
+        if config_options.get("cln-zappit-generic-reject") is not None:
             self.config.generic_reject = to_bool(config_options["cln-zappit-generic-reject"], self.config.generic_reject)
-        if "cln-zappit-reject-message" in config_options:
+        if config_options.get("cln-zappit-reject-message") is not None:
             self.config.reject_message = str(config_options["cln-zappit-reject-message"]).strip()
 
         # 4. State storage path
-        self.state_path = os.path.join(lightning_dir, DEFAULT_STATE_FILENAME)
+        self.state_path = os.path.join(self.lightning_dir, DEFAULT_STATE_FILENAME)
         self.state = load_runtime_state(self.state_path)
 
         # 5. Initialize RPC client

@@ -423,6 +423,39 @@ class TestRobustnessAndEdgeCases(unittest.TestCase):
         self.assertEqual(res["result"], "reject")
         self.assertIn("5000000sat", res["error_message"])
 
+    def test_init_discovers_config_and_preserves_values(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            conf_path = os.path.join(temp_dir, "cln-zappit.conf")
+            with open(conf_path, "w") as f:
+                f.write("[policy]\nmin_channel_sat = 7777777\nreject_private = false\n")
+
+            # 1. Direct discovery in lightning-dir
+            plugin = ClnZappitPlugin()
+            plugin.handle_init({
+                "options": {},
+                "configuration": {
+                    "lightning-dir": temp_dir,
+                    "network": "bitcoin",
+                }
+            })
+            self.assertEqual(plugin.config_path, os.path.abspath(conf_path))
+            self.assertEqual(plugin.config.min_channel_sat, 7777777)
+            self.assertFalse(plugin.config.reject_private)
+
+            # 2. Parent directory discovery (e.g. lightning-dir is ~/cln/bitcoin)
+            net_subdir = os.path.join(temp_dir, "bitcoin")
+            os.makedirs(net_subdir, exist_ok=True)
+            plugin2 = ClnZappitPlugin()
+            plugin2.handle_init({
+                "options": {},
+                "configuration": {
+                    "lightning-dir": net_subdir,
+                    "network": "bitcoin",
+                }
+            })
+            self.assertEqual(plugin2.config_path, os.path.abspath(conf_path))
+            self.assertEqual(plugin2.config.min_channel_sat, 7777777)
+
 
 if __name__ == "__main__":
     unittest.main()
