@@ -21,6 +21,12 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    stream=sys.stderr,
+)
+
 STATE_VERSION = 1
 MAX_DECISIONS = 1000
 DEFAULT_CONFIG_FILENAME = "cln-zappit.conf"
@@ -801,6 +807,29 @@ class ClnZappitPlugin:
 
         if self.state_path:
             save_runtime_state(self.state_path, self.state)
+
+        # Log decision to lightningd log (stderr)
+        if accepted:
+            logging.info(
+                "CLN-zappit: ACCEPTED %s channel from %s (funding: %d sat, announced: %s, reason: %s)",
+                protocol,
+                peer_id,
+                funding_msat // 1000,
+                announced,
+                reason,
+            )
+        else:
+            ban_info = f", auto-banned until {banned_until}" if banned_until else ""
+            logging.warning(
+                "CLN-zappit: REJECTED %s channel from %s (funding: %d sat, announced: %s, reason: %s, message: %s%s)",
+                protocol,
+                peer_id,
+                funding_msat // 1000,
+                announced,
+                reason,
+                message,
+                ban_info,
+            )
 
         # Emit custom notification
         self.emit_notification("cln_zappit_decision", decision.to_dict())
