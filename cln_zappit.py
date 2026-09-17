@@ -713,13 +713,19 @@ class ClnZappitPlugin:
         if config_options.get("cln-zappit-reject-message") is not None:
             self.config.reject_message = str(config_options["cln-zappit-reject-message"]).strip()
 
-        # 4. State storage path
-        self.state_path = os.path.join(self.lightning_dir, DEFAULT_STATE_FILENAME)
+        # 4. State storage path (co-located with config_path if available)
+        if self.config_path:
+            state_dir = os.path.dirname(self.config_path)
+        else:
+            state_dir = self.lightning_dir
+        self.state_path = os.path.join(state_dir, DEFAULT_STATE_FILENAME)
         self.state = load_runtime_state(self.state_path)
+        if not os.path.exists(self.state_path):
+            save_runtime_state(self.state_path, self.state)
 
         # 5. Initialize RPC client
         if rpc_file:
-            rpc_path = rpc_file if os.path.isabs(rpc_file) else os.path.join(lightning_dir, rpc_file)
+            rpc_path = rpc_file if os.path.isabs(rpc_file) else os.path.join(self.lightning_dir, rpc_file)
             self.rpc_client = ClnUnixRpcClient(rpc_path)
             try:
                 getinfo = self.rpc_client.call("getinfo")
@@ -884,6 +890,7 @@ class ClnZappitPlugin:
         return {
             "enabled": self.config.enabled,
             "config_file": self.config_path,
+            "state_file": self.state_path,
             "min_channel_sat": self.config.min_channel_sat,
             "min_public_channels": self.config.min_public_channels,
             "min_distinct_peers": self.config.min_distinct_peers,
