@@ -105,6 +105,14 @@ python3 -m unittest discover -s tests -p "test_*.py"
 
 ---
 
+## Acknowledgments & Prior Art
+
+This project is derived from and inspired by [**zappit**](https://github.com/niftynei/zappit) created by [@niftynei](https://github.com/niftynei).
+
+We extracted and ported **only the defensive channel rejection and admission policy logic** (originally `plugins/zappit-policy`), excluding the browser extension, WebLN, and LNURL components to create a standalone, zero-dependency Python plugin for Core Lightning node operators.
+
+---
+
 ## License
 
 MIT License. Copyright (c) 2026 btweenthebars.
