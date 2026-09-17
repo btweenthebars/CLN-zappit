@@ -12,7 +12,7 @@
         let pkgs = nixpkgs.legacyPackages.${system};
         in {
           default = pkgs.rustPlatform.buildRustPackage {
-            pname = "cln-zapit";
+            pname = "cln-zappit";
             version = "0.1.0";
             src = self;
             cargoLock.lockFile = ./Cargo.lock;
@@ -23,7 +23,7 @@
       apps = forAllSystems (system: {
         default = {
           type = "app";
-          program = "${self.packages.${system}.default}/bin/cln-zapit";
+          program = "${self.packages.${system}.default}/bin/cln-zappit";
           meta.description = "Run the defensive Zappit incoming-channel policy plugin";
         };
       });

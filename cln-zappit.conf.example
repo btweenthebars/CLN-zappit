@@ -1,9 +1,9 @@
 # ==============================================================================
-# CLN-zapit Configuration File
+# CLN-zappit Configuration File
 # ==============================================================================
 # Defensive incoming-channel admission policy for Core Lightning.
-# Place this file at ~/.lightning/cln-zapit.conf, ~/.lightning/<network>/cln-zapit.conf,
-# or specify via CLN config: cln-zapit-config=/path/to/cln-zapit.conf
+# Place this file at ~/.lightning/cln-zappit.conf, ~/.lightning/<network>/cln-zappit.conf,
+# or specify via CLN config: cln-zappit-config=/path/to/cln-zappit.conf
 # ==============================================================================
 
 [policy]

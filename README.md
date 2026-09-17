@@ -1,21 +1,21 @@
-# CLN-zapit
+# CLN-zappit
 
-**CLN-zapit** is a defensive, configuration-driven channel admission plugin for [Core Lightning](https://github.com/ElementsProject/lightning) (CLN). It protects your node against spam, dust channels, unannounced/private channel clutter, and sybil counterparties by evaluating incoming v1 (`openchannel`) and v2 dual-funded (`openchannel2`) channel proposals before funding.
+**CLN-zappit** is a defensive, configuration-driven channel admission plugin for [Core Lightning](https://github.com/ElementsProject/lightning) (CLN). It protects your node against spam, dust channels, unannounced/private channel clutter, and sybil counterparties by evaluating incoming v1 (`openchannel`) and v2 dual-funded (`openchannel2`) channel proposals before funding.
 
-All policy customization lives in a clean, self-documenting configuration file (`cln-zapit.conf`) that can be reloaded at runtime without restarting your node.
+All policy customization lives in a clean, self-documenting configuration file (`cln-zappit.conf`) that can be reloaded at runtime without restarting your node.
 
 ---
 
 ## Key Features
 
-- **Zero External Dependencies**: Pure Python 3.8+ implementation (`cln_zapit.py`) using only standard library modules. Runs out of the box without `pip` or compilation.
+- **Zero External Dependencies**: Pure Python 3.8+ implementation (`cln_zappit.py`) using only standard library modules. Runs out of the box without `pip` or compilation.
 - **Dual Protocol Hooks**: Intercepts both legacy single-funded (`openchannel`) and modern dual-funded v2 (`openchannel2`) proposals.
-- **Config-First Architecture**: Customize all thresholds, privacy rules, peer ban limits, and allowlists/denylists in `cln-zapit.conf`.
+- **Config-First Architecture**: Customize all thresholds, privacy rules, peer ban limits, and allowlists/denylists in `cln-zappit.conf`.
 - **Public Graph Verification**: Queries your node's gossip graph (`listchannels`) to verify that unknown peers maintain genuine public channels, distinct counterparties, aggregate capacity, and established channel age.
 - **Automated Anti-Spam Rate Limiting**: Tracks repeated failed proposals within a rolling window and automatically applies temporary bans (e.g. 24 hours after 3 rejections).
 - **Allowlist & Denylist**: Explicit allowlist bypasses all checks; denylist unconditionally rejects banned peers.
-- **Atomic & Secure State**: Persistent bans, allow/deny entries, and decision logs are stored in `cln-zapit.json` using atomic replacement and mode `0600` permissions.
-- **Hot-Reload RPC**: Tweak your config file on disk and apply changes immediately using `lightning-cli cln-zapit-reload`.
+- **Atomic & Secure State**: Persistent bans, allow/deny entries, and decision logs are stored in `cln-zappit.json` using atomic replacement and mode `0600` permissions.
+- **Hot-Reload RPC**: Tweak your config file on disk and apply changes immediately using `lightning-cli cln-zappit-reload`.
 - **Companion Rust Implementation**: Full Rust implementation available under `rust/` for environments using Cargo or Nix flakes.
 
 ---
@@ -38,38 +38,38 @@ All policy customization lives in a clean, self-documenting configuration file (
 
 1. Clone the repository to your node:
    ```bash
-   git clone https://github.com/btweenthebars/CLN-zapit.git /path/to/CLN-zapit
+   git clone https://github.com/btweenthebars/CLN-zappit.git /path/to/CLN-zappit
    ```
 
 2. Copy and customize the configuration file:
    ```bash
-   cp /path/to/CLN-zapit/cln-zapit.conf.example ~/.lightning/cln-zapit.conf
-   chmod 0600 ~/.lightning/cln-zapit.conf
+   cp /path/to/CLN-zappit/cln-zappit.conf.example ~/.lightning/cln-zappit.conf
+   chmod 0600 ~/.lightning/cln-zappit.conf
    ```
 
 3. Add the plugin to your Core Lightning config (`~/.lightning/config` or `~/.lightning/bitcoin/config`):
    ```ini
-   plugin=/path/to/CLN-zapit/cln_zapit.py
-   cln-zapit-config=/path/to/CLN-zapit/cln-zapit.conf
+   plugin=/path/to/CLN-zappit/cln_zappit.py
+   cln-zappit-config=/path/to/CLN-zappit/cln-zappit.conf
    ```
 
 ### Option 2: Load Dynamically at Runtime
 
 Load without restarting `lightningd`:
 ```bash
-lightning-cli plugin start /path/to/CLN-zapit/cln_zapit.py cln-zapit-config=/path/to/CLN-zapit/cln-zapit.conf
+lightning-cli plugin start /path/to/CLN-zappit/cln_zappit.py cln-zappit-config=/path/to/CLN-zappit/cln-zappit.conf
 ```
 
 To stop or restart:
 ```bash
-lightning-cli plugin stop /path/to/CLN-zapit/cln_zapit.py
+lightning-cli plugin stop /path/to/CLN-zappit/cln_zappit.py
 ```
 
 ---
 
-## Configuration (`cln-zapit.conf`)
+## Configuration (`cln-zappit.conf`)
 
-A complete example is provided in [`cln-zapit.conf.example`](cln-zapit.conf.example):
+A complete example is provided in [`cln-zappit.conf.example`](cln-zappit.conf.example):
 
 ```ini
 [policy]
@@ -122,20 +122,20 @@ ban_seconds = 86400
 
 | Command | Arguments | Description |
 | :--- | :--- | :--- |
-| `cln-zapit-status` | _none_ | View current policy rules, active bans count, and decision stats |
-| `cln-zapit-decisions` | `[limit=50]` | View detailed log of recent accepted and rejected channel attempts |
-| `cln-zapit-allow` | `node_id [enabled=true]` | Add or remove a peer pubkey from the runtime allowlist |
-| `cln-zapit-deny` | `node_id [enabled=true]` | Add or remove a peer pubkey from the runtime denylist |
-| `cln-zapit-unban` | `node_id` | Lift a temporary rate-limit ban on a node |
-| `cln-zapit-reload` | _none_ | Hot-reload the configuration file from disk |
+| `cln-zappit-status` | _none_ | View current policy rules, active bans count, and decision stats |
+| `cln-zappit-decisions` | `[limit=50]` | View detailed log of recent accepted and rejected channel attempts |
+| `cln-zappit-allow` | `node_id [enabled=true]` | Add or remove a peer pubkey from the runtime allowlist |
+| `cln-zappit-deny` | `node_id [enabled=true]` | Add or remove a peer pubkey from the runtime denylist |
+| `cln-zappit-unban` | `node_id` | Lift a temporary rate-limit ban on a node |
+| `cln-zappit-reload` | _none_ | Hot-reload the configuration file from disk |
 
 ### Example RPC Output
 
-#### `lightning-cli cln-zapit-status`
+#### `lightning-cli cln-zappit-status`
 ```json
 {
   "enabled": true,
-  "config_file": "/home/bitcoin/.lightning/cln-zapit.conf",
+  "config_file": "/home/bitcoin/.lightning/cln-zappit.conf",
   "min_channel_sat": 2000000,
   "min_public_channels": 1,
   "min_distinct_peers": 1,
@@ -152,11 +152,11 @@ ban_seconds = 86400
 }
 ```
 
-#### `lightning-cli cln-zapit-reload`
+#### `lightning-cli cln-zappit-reload`
 ```json
 {
   "reloaded": true,
-  "config_path": "/home/bitcoin/.lightning/cln-zapit.conf",
+  "config_path": "/home/bitcoin/.lightning/cln-zappit.conf",
   "enabled": true
 }
 ```
@@ -165,7 +165,7 @@ ban_seconds = 86400
 
 ## Notifications
 
-Whenever a channel proposal is evaluated, CLN-zapit emits a `cln_zapit_decision` custom notification over the CLN plugin bus:
+Whenever a channel proposal is evaluated, CLN-zappit emits a `cln_zappit_decision` custom notification over the CLN plugin bus:
 
 ```json
 {
@@ -218,7 +218,7 @@ cargo build --release
 
 Then point Core Lightning to the compiled binary:
 ```ini
-plugin=/path/to/CLN-zapit/rust/target/release/cln-zapit-policy
+plugin=/path/to/CLN-zappit/rust/target/release/cln-zappit-policy
 ```
 
 ---

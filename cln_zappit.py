@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CLN-zapit: Defensive incoming-channel admission policy for Core Lightning.
+CLN-zappit: Defensive incoming-channel admission policy for Core Lightning.
 
 Intercepts incoming v1 (openchannel) and v2 (openchannel2) channel proposals,
 evaluating them against public network gossip, size limits, privacy rules,
@@ -23,8 +23,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 STATE_VERSION = 1
 MAX_DECISIONS = 1000
-DEFAULT_CONFIG_FILENAME = "cln-zapit.conf"
-DEFAULT_STATE_FILENAME = "cln-zapit.json"
+DEFAULT_CONFIG_FILENAME = "cln-zappit.conf"
+DEFAULT_STATE_FILENAME = "cln-zappit.json"
 
 NODE_ID_REGEX = re.compile(r"^(02|03)[0-9a-fA-F]{64}$")
 
@@ -395,7 +395,7 @@ def save_runtime_state(path: str, state: RuntimeState) -> None:
     """Atomically save runtime state to file with mode 0600."""
     parent = os.path.dirname(path) or "."
     os.makedirs(parent, exist_ok=True)
-    temp_fd, temp_path = tempfile.mkstemp(prefix="cln-zapit-state-", suffix=".tmp", dir=parent)
+    temp_fd, temp_path = tempfile.mkstemp(prefix="cln-zappit-state-", suffix=".tmp", dir=parent)
     try:
         os.fchmod(temp_fd, 0o600)
         with os.fdopen(temp_fd, "w", encoding="utf-8") as f:
@@ -427,7 +427,7 @@ class ClnUnixRpcClient:
     def call(self, method: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         payload = {
             "jsonrpc": "2.0",
-            "id": f"cln-zapit-{int(time.time() * 1000)}",
+            "id": f"cln-zappit-{int(time.time() * 1000)}",
             "method": method,
             "params": params or {},
         }
@@ -459,7 +459,7 @@ class ClnUnixRpcClient:
             sock.close()
 
 
-class ClnZapitPlugin:
+class ClnZappitPlugin:
     """Core Lightning Plugin Controller."""
 
     def __init__(self):
@@ -496,54 +496,54 @@ class ClnZapitPlugin:
             ],
             "options": [
                 {
-                    "name": "cln-zapit-config",
+                    "name": "cln-zappit-config",
                     "type": "string",
-                    "description": "Path to cln-zapit.conf configuration file",
+                    "description": "Path to cln-zappit.conf configuration file",
                 },
                 {
-                    "name": "cln-zapit-enabled",
+                    "name": "cln-zappit-enabled",
                     "type": "bool",
                     "default": True,
                     "description": "Enforce incoming-channel admission policy",
                 },
                 {
-                    "name": "cln-zapit-min-channel-sat",
+                    "name": "cln-zappit-min-channel-sat",
                     "type": "int",
                     "default": 2000000,
                     "description": "Minimum remote funding accepted (sats)",
                 },
                 {
-                    "name": "cln-zapit-min-public-channels",
+                    "name": "cln-zappit-min-public-channels",
                     "type": "int",
                     "default": 1,
                     "description": "Minimum other active public channels required",
                 },
                 {
-                    "name": "cln-zapit-min-distinct-peers",
+                    "name": "cln-zappit-min-distinct-peers",
                     "type": "int",
                     "default": 1,
                     "description": "Minimum distinct counterparties required",
                 },
                 {
-                    "name": "cln-zapit-min-public-capacity-sat",
+                    "name": "cln-zappit-min-public-capacity-sat",
                     "type": "int",
                     "default": 0,
                     "description": "Minimum total public capacity required (sats)",
                 },
                 {
-                    "name": "cln-zapit-min-oldest-channel-blocks",
+                    "name": "cln-zappit-min-oldest-channel-blocks",
                     "type": "int",
                     "default": 0,
                     "description": "Minimum age of oldest channel in blocks",
                 },
                 {
-                    "name": "cln-zapit-reject-private",
+                    "name": "cln-zappit-reject-private",
                     "type": "bool",
                     "default": True,
                     "description": "Reject unannounced private channel proposals",
                 },
                 {
-                    "name": "cln-zapit-fail-open",
+                    "name": "cln-zappit-fail-open",
                     "type": "bool",
                     "default": False,
                     "description": "Accept proposals if graph inspection fails",
@@ -551,38 +551,38 @@ class ClnZapitPlugin:
             ],
             "rpcmethods": [
                 {
-                    "name": "cln-zapit-status",
+                    "name": "cln-zappit-status",
                     "usage": "",
                     "description": "Show current admission policy, ban counts, and summary stats",
                 },
                 {
-                    "name": "cln-zapit-decisions",
+                    "name": "cln-zappit-decisions",
                     "usage": "[limit]",
                     "description": "Show recent channel admission decisions",
                 },
                 {
-                    "name": "cln-zapit-allow",
+                    "name": "cln-zappit-allow",
                     "usage": "node_id [enabled]",
                     "description": "Add or remove a node from the admission allowlist",
                 },
                 {
-                    "name": "cln-zapit-deny",
+                    "name": "cln-zappit-deny",
                     "usage": "node_id [enabled]",
                     "description": "Add or remove a node from the admission denylist",
                 },
                 {
-                    "name": "cln-zapit-unban",
+                    "name": "cln-zappit-unban",
                     "usage": "node_id",
                     "description": "Lift a temporary rate-limit ban on a node",
                 },
                 {
-                    "name": "cln-zapit-reload",
+                    "name": "cln-zappit-reload",
                     "usage": "",
                     "description": "Hot-reload admission policy configuration from disk",
                 },
             ],
             "notifications": [
-                {"method": "cln_zapit_decision"},
+                {"method": "cln_zappit_decision"},
             ],
         }
 
@@ -593,7 +593,7 @@ class ClnZapitPlugin:
         rpc_file = cln_config.get("rpc-file")
 
         # 1. Determine config file path
-        custom_path = config_options.get("cln-zapit-config")
+        custom_path = config_options.get("cln-zappit-config")
         if custom_path and isinstance(custom_path, str) and os.path.exists(custom_path):
             self.config_path = custom_path
         else:
@@ -602,28 +602,28 @@ class ClnZapitPlugin:
         # 2. Load config file
         if self.config_path:
             self.config = load_config_file(self.config_path)
-            logging.info("CLN-zapit: loaded configuration from %s", self.config_path)
+            logging.info("CLN-zappit: loaded configuration from %s", self.config_path)
         else:
             self.config = PolicyConfig()
-            logging.info("CLN-zapit: using default policy configuration")
+            logging.info("CLN-zappit: using default policy configuration")
 
         # 3. CLI options override config file if explicitly supplied
-        if "cln-zapit-enabled" in config_options:
-            self.config.enabled = bool(config_options["cln-zapit-enabled"])
-        if "cln-zapit-min-channel-sat" in config_options:
-            self.config.min_channel_sat = int(config_options["cln-zapit-min-channel-sat"])
-        if "cln-zapit-min-public-channels" in config_options:
-            self.config.min_public_channels = int(config_options["cln-zapit-min-public-channels"])
-        if "cln-zapit-min-distinct-peers" in config_options:
-            self.config.min_distinct_peers = int(config_options["cln-zapit-min-distinct-peers"])
-        if "cln-zapit-min-public-capacity-sat" in config_options:
-            self.config.min_public_capacity_sat = int(config_options["cln-zapit-min-public-capacity-sat"])
-        if "cln-zapit-min-oldest-channel-blocks" in config_options:
-            self.config.min_oldest_channel_blocks = int(config_options["cln-zapit-min-oldest-channel-blocks"])
-        if "cln-zapit-reject-private" in config_options:
-            self.config.reject_private = bool(config_options["cln-zapit-reject-private"])
-        if "cln-zapit-fail-open" in config_options:
-            self.config.fail_open = bool(config_options["cln-zapit-fail-open"])
+        if "cln-zappit-enabled" in config_options:
+            self.config.enabled = bool(config_options["cln-zappit-enabled"])
+        if "cln-zappit-min-channel-sat" in config_options:
+            self.config.min_channel_sat = int(config_options["cln-zappit-min-channel-sat"])
+        if "cln-zappit-min-public-channels" in config_options:
+            self.config.min_public_channels = int(config_options["cln-zappit-min-public-channels"])
+        if "cln-zappit-min-distinct-peers" in config_options:
+            self.config.min_distinct_peers = int(config_options["cln-zappit-min-distinct-peers"])
+        if "cln-zappit-min-public-capacity-sat" in config_options:
+            self.config.min_public_capacity_sat = int(config_options["cln-zappit-min-public-capacity-sat"])
+        if "cln-zappit-min-oldest-channel-blocks" in config_options:
+            self.config.min_oldest_channel_blocks = int(config_options["cln-zappit-min-oldest-channel-blocks"])
+        if "cln-zappit-reject-private" in config_options:
+            self.config.reject_private = bool(config_options["cln-zappit-reject-private"])
+        if "cln-zappit-fail-open" in config_options:
+            self.config.fail_open = bool(config_options["cln-zappit-fail-open"])
 
         # 4. State storage path
         self.state_path = os.path.join(lightning_dir, DEFAULT_STATE_FILENAME)
@@ -637,7 +637,7 @@ class ClnZapitPlugin:
                 getinfo = self.rpc_client.call("getinfo")
                 self.local_node_id = getinfo.get("id")
             except Exception as e:
-                logging.warning("CLN-zapit: could not query getinfo at startup: %s", e)
+                logging.warning("CLN-zappit: could not query getinfo at startup: %s", e)
 
         return {}
 
@@ -705,7 +705,7 @@ class ClnZapitPlugin:
             save_runtime_state(self.state_path, self.state)
 
         # Emit custom notification
-        self.emit_notification("cln_zapit_decision", decision.to_dict())
+        self.emit_notification("cln_zappit_decision", decision.to_dict())
 
         if accepted:
             return {"result": "continue"}
@@ -845,17 +845,17 @@ class ClnZapitPlugin:
                 res = self.handle_open_channel_hook(params, "v1")
             elif method == "openchannel2":
                 res = self.handle_open_channel_hook(params, "v2")
-            elif method == "cln-zapit-status":
+            elif method == "cln-zappit-status":
                 res = self.rpc_status(params)
-            elif method == "cln-zapit-decisions":
+            elif method == "cln-zappit-decisions":
                 res = self.rpc_decisions(params)
-            elif method == "cln-zapit-allow":
+            elif method == "cln-zappit-allow":
                 res = self.rpc_allow(params)
-            elif method == "cln-zapit-deny":
+            elif method == "cln-zappit-deny":
                 res = self.rpc_deny(params)
-            elif method == "cln-zapit-unban":
+            elif method == "cln-zappit-unban":
                 res = self.rpc_unban(params)
-            elif method == "cln-zapit-reload":
+            elif method == "cln-zappit-reload":
                 res = self.rpc_reload(params)
             else:
                 self._send_error(req_id, -32601, f"Unknown method: {method}")
@@ -880,5 +880,5 @@ class ClnZapitPlugin:
 
 
 if __name__ == "__main__":
-    plugin = ClnZapitPlugin()
+    plugin = ClnZappitPlugin()
     plugin.run()

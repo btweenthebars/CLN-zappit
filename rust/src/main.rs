@@ -23,74 +23,74 @@ use std::{
 use tokio::sync::Mutex;
 
 const OPT_ENABLED: DefaultBooleanConfigOption = DefaultBooleanConfigOption::new_bool_with_default(
-    "cln-zapit-enabled",
+    "cln-zappit-enabled",
     true,
     "Enforce the incoming-channel admission policy",
 );
 const OPT_MIN_CHANNEL_SAT: DefaultIntegerConfigOption =
     DefaultIntegerConfigOption::new_i64_with_default(
-        "cln-zapit-min-channel-sat",
+        "cln-zappit-min-channel-sat",
         2_000_000,
         "Minimum remote contribution accepted, in satoshi",
     );
 const OPT_MIN_PUBLIC_CHANNELS: DefaultIntegerConfigOption =
     DefaultIntegerConfigOption::new_i64_with_default(
-        "cln-zapit-min-public-channels",
+        "cln-zappit-min-public-channels",
         1,
         "Minimum other active public channels required from an unknown peer",
     );
 const OPT_MIN_DISTINCT_PEERS: DefaultIntegerConfigOption =
     DefaultIntegerConfigOption::new_i64_with_default(
-        "cln-zapit-min-distinct-peers",
+        "cln-zappit-min-distinct-peers",
         1,
         "Minimum distinct public counterparties required from an unknown peer",
     );
 const OPT_MIN_PUBLIC_CAPACITY_SAT: DefaultIntegerConfigOption =
     DefaultIntegerConfigOption::new_i64_with_default(
-        "cln-zapit-min-public-capacity-sat",
+        "cln-zappit-min-public-capacity-sat",
         0,
         "Minimum other active public capacity required, in satoshi",
     );
 const OPT_MIN_OLDEST_BLOCKS: DefaultIntegerConfigOption =
     DefaultIntegerConfigOption::new_i64_with_default(
-        "cln-zapit-min-oldest-channel-blocks",
+        "cln-zappit-min-oldest-channel-blocks",
         0,
         "Minimum age of the peer's oldest active public channel, in blocks",
     );
 const OPT_REJECT_PRIVATE: DefaultBooleanConfigOption =
     DefaultBooleanConfigOption::new_bool_with_default(
-        "cln-zapit-reject-private",
+        "cln-zappit-reject-private",
         true,
         "Reject unannounced channel proposals from unknown peers",
     );
 const OPT_FAIL_OPEN: DefaultBooleanConfigOption = DefaultBooleanConfigOption::new_bool_with_default(
-    "cln-zapit-fail-open",
+    "cln-zappit-fail-open",
     false,
     "Accept when public graph inspection fails instead of rejecting",
 );
 const OPT_REJECTION_WINDOW: DefaultIntegerConfigOption =
     DefaultIntegerConfigOption::new_i64_with_default(
-        "cln-zapit-rejection-window-seconds",
+        "cln-zappit-rejection-window-seconds",
         3_600,
         "Window used to count repeated rejected attempts",
     );
 const OPT_BAN_AFTER: DefaultIntegerConfigOption = DefaultIntegerConfigOption::new_i64_with_default(
-    "cln-zapit-ban-after-rejections",
+    "cln-zappit-ban-after-rejections",
     3,
     "Rejected attempts in the window before a temporary ban; zero disables bans",
 );
 const OPT_BAN_SECONDS: DefaultIntegerConfigOption =
     DefaultIntegerConfigOption::new_i64_with_default(
-        "cln-zapit-ban-seconds",
+        "cln-zappit-ban-seconds",
         86_400,
         "Duration of a temporary peer ban, in seconds",
     );
 const OPT_ALLOW_NODE: StringArrayConfigOption = StringArrayConfigOption::new_str_arr_no_default(
-    "cln-zapit-allow-node",
+    "cln-zappit-allow-node",
     "Node pubkey to allow regardless of graph policy; repeatable",
 );
 const OPT_DENY_NODE: StringArrayConfigOption = StringArrayConfigOption::new_str_arr_no_default(
-    "cln-zapit-deny-node",
+    "cln-zappit-deny-node",
     "Node pubkey to reject regardless of graph policy; repeatable",
 );
 
@@ -289,12 +289,12 @@ async fn process_open(
 
     if let Err(error) = plugin
         .send_custom_notification(
-            "cln_zapit_decision".to_owned(),
+            "cln_zappit_decision".to_owned(),
             serde_json::to_value(&decision)?,
         )
         .await
     {
-        log::warn!("could not publish cln_zapit_decision: {error:#}");
+        log::warn!("could not publish cln_zappit_decision: {error:#}");
     }
     if accepted {
         log::info!(
@@ -311,7 +311,7 @@ async fn process_open(
             request.peer_id,
             message
         );
-        Ok(json!({"result": "reject", "error_message": format!("cln-zapit: {message}")}))
+        Ok(json!({"result": "reject", "error_message": format!("cln-zappit: {message}")}))
     }
 }
 
@@ -453,30 +453,30 @@ async fn main() -> Result<()> {
         .hook("openchannel", openchannel)
         .hook("openchannel2", openchannel2)
         .rpcmethod_from_builder(
-            RpcMethodBuilder::new("cln-zapit-status", status)
+            RpcMethodBuilder::new("cln-zappit-status", status)
                 .description("Show incoming-channel policy, lists, bans, and audit coverage"),
         )
         .rpcmethod_from_builder(
-            RpcMethodBuilder::new("cln-zapit-decisions", decisions)
+            RpcMethodBuilder::new("cln-zappit-decisions", decisions)
                 .description("List recent incoming-channel admission decisions")
                 .usage("[limit]"),
         )
         .rpcmethod_from_builder(
-            RpcMethodBuilder::new("cln-zapit-allow", allow_node)
+            RpcMethodBuilder::new("cln-zappit-allow", allow_node)
                 .description("Add or remove a persistent node allowlist entry")
                 .usage("node_id [enabled]"),
         )
         .rpcmethod_from_builder(
-            RpcMethodBuilder::new("cln-zapit-deny", deny_node)
+            RpcMethodBuilder::new("cln-zappit-deny", deny_node)
                 .description("Add or remove a persistent node denylist entry")
                 .usage("node_id [enabled]"),
         )
         .rpcmethod_from_builder(
-            RpcMethodBuilder::new("cln-zapit-unban", unban_node)
+            RpcMethodBuilder::new("cln-zappit-unban", unban_node)
                 .description("Clear a peer's temporary ban and rejection counter")
                 .usage("node_id"),
         )
-        .notification(NotificationTopic::new("cln_zapit_decision"))
+        .notification(NotificationTopic::new("cln_zappit_decision"))
         .configure()
         .await?
     else {
@@ -523,7 +523,7 @@ async fn main() -> Result<()> {
 
     let configuration = configured.configuration();
     let rpc_path = PathBuf::from(&configuration.lightning_dir).join(&configuration.rpc_file);
-    let state_path = PathBuf::from(&configuration.lightning_dir).join("cln-zapit.json");
+    let state_path = PathBuf::from(&configuration.lightning_dir).join("cln-zappit.json");
     let info = node_rpc::call(&rpc_path, "getinfo", json!({}), Duration::from_secs(10)).await?;
     let local_node_id = info
         .get("id")

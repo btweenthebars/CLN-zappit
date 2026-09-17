@@ -4,7 +4,7 @@ import tempfile
 import time
 import unittest
 
-from cln_zapit import (
+from cln_zappit import (
     GraphStats,
     OpenRequest,
     PolicyConfig,
