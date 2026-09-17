@@ -513,8 +513,9 @@ class ClnZappitPlugin:
         self.local_node_id: Optional[str] = None
 
     def find_config_file(self, lightning_dir: str) -> Optional[str]:
+        expanded_dir = os.path.expanduser(lightning_dir)
         candidates = [
-            os.path.join(lightning_dir, DEFAULT_CONFIG_FILENAME),
+            os.path.join(expanded_dir, DEFAULT_CONFIG_FILENAME),
             os.path.join(os.path.dirname(os.path.abspath(__file__)), DEFAULT_CONFIG_FILENAME),
             os.path.expanduser(f"~/.lightning/{DEFAULT_CONFIG_FILENAME}"),
         ]
@@ -631,14 +632,16 @@ class ClnZappitPlugin:
     def handle_init(self, params: Dict[str, Any]) -> Dict[str, Any]:
         config_options = params.get("options", {})
         cln_config = params.get("configuration", {})
-        lightning_dir = cln_config.get("lightning-dir", ".")
+        lightning_dir = os.path.expanduser(cln_config.get("lightning-dir", "."))
         rpc_file = cln_config.get("rpc-file")
 
         # 1. Determine config file path
         custom_path = config_options.get("cln-zappit-config")
-        if custom_path and isinstance(custom_path, str) and os.path.exists(custom_path):
-            self.config_path = custom_path
-        else:
+        if custom_path and isinstance(custom_path, str):
+            custom_path = os.path.expanduser(custom_path)
+            if os.path.exists(custom_path):
+                self.config_path = custom_path
+        if not self.config_path:
             self.config_path = self.find_config_file(lightning_dir)
 
         # 2. Load config file
