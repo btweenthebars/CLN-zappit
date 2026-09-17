@@ -520,13 +520,19 @@ class ClnZappitPlugin:
         self.rpc_client: Optional[ClnUnixRpcClient] = None
         self.local_node_id: Optional[str] = None
 
-    def find_config_file(self, lightning_dir: str) -> Optional[str]:
+    def find_config_file(self, lightning_dir: str, network: Optional[str] = None) -> Optional[str]:
         expanded_dir = os.path.expanduser(lightning_dir)
         candidates = [
             os.path.join(expanded_dir, DEFAULT_CONFIG_FILENAME),
+        ]
+        if network:
+            candidates.append(os.path.join(expanded_dir, network, DEFAULT_CONFIG_FILENAME))
+        candidates.extend([
             os.path.join(os.path.dirname(os.path.abspath(__file__)), DEFAULT_CONFIG_FILENAME),
             os.path.expanduser(f"~/.lightning/{DEFAULT_CONFIG_FILENAME}"),
-        ]
+        ])
+        if network:
+            candidates.append(os.path.expanduser(f"~/.lightning/{network}/{DEFAULT_CONFIG_FILENAME}"))
         for path in candidates:
             if os.path.exists(path):
                 return path
@@ -662,7 +668,7 @@ class ClnZappitPlugin:
             if os.path.exists(custom_path):
                 self.config_path = custom_path
         if not self.config_path:
-            self.config_path = self.find_config_file(lightning_dir)
+            self.config_path = self.find_config_file(lightning_dir, cln_config.get("network"))
 
         # 2. Load config file
         if self.config_path:
