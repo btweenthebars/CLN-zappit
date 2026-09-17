@@ -2,26 +2,17 @@
 
 Defensive incoming-channel admission policy plugin for [Core Lightning](https://github.com/ElementsProject/lightning) (CLN). Protects your node against spam, dust channels, unannounced private channels, and sybil peers by intercepting incoming v1 (`openchannel`) and v2 dual-funding (`openchannel2`) channel proposals.
 
+Zero external dependencies — pure Python 3.8+ using only standard library modules.
+
 ---
 
-## How to Build
+## Installation
 
-### Python Version (Default & Recommended)
-**No build or compilation required.** CLN-zappit is a zero-dependency Python 3.8+ plugin using only the Python standard library.
+No build or compilation is required. Simply make the script executable:
 
-Simply make sure it is executable:
 ```bash
 chmod +x cln_zappit.py
 ```
-
-### Rust Version (Optional)
-If you prefer running a native binary:
-
-```bash
-cd rust
-cargo build --release
-```
-The compiled binary will be located at `rust/target/release/cln-zappit-policy`.
 
 ---
 
@@ -68,7 +59,6 @@ Add these lines to your Core Lightning config (`~/.lightning/config` or `~/.ligh
 plugin=/path/to/CLN-zappit/cln_zappit.py
 cln-zappit-config=/path/to/cln-zappit.conf
 ```
-*(Or use `plugin=/path/to/CLN-zappit/rust/target/release/cln-zappit-policy` for the Rust binary).*
 
 #### Method B: Start Dynamically via `lightning-cli`
 Start without restarting `lightningd`:
